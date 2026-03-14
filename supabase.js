@@ -10,7 +10,7 @@
 // ADIM 1: BU 2 SATIRI GERÇEK DEĞERLE DOLDUR
 // Supabase Dashboard > Settings > API
 // ============================================
-const SUPABASE_URL = 'https://ualbywwyqhqvurhhojae.supabase.co';
+const SUPABASE_URL = 'https://ualbywvyqhqvurhhojae.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_76bkRuaLc5NxzZNSuoSbQw_IjthPho4'; // eyJ... ile başlar
 
 if (!window.supabase) {
