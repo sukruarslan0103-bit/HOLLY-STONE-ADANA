@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#06070d">
+<title>Yönetim Paneli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- ① Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- ② Supabase SDK — MUTLAKA supabase.js'ten ÖNCE -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root {
+  --bg:#06070d; --s1:#0c0d16; --s2:#11121e; --s3:#181926; --s4:#1e2030;
+  --b1:#22243a; --b2:#2c2e48; --b3:#363858;
+  --acc:#f5c842; --acc-a:rgba(245,200,66,.15);
+  --gr:#2ecc8a;  --gr-a:rgba(46,204,138,.15);
+  --rd:#e8503a;  --rd-a:rgba(232,80,58,.15);
+  --bl:#4f8ef7;  --bl-a:rgba(79,142,247,.15);
+  --pu:#9b72f5;  --pu-a:rgba(155,114,245,.15);
+  --cy:#22d3ee;  --cy-a:rgba(34,211,238,.15);
+  --or:#f97316;  --or-a:rgba(249,115,22,.15);
+  --t1:#dde0f0; --t2:#8e90a8; --t3:#52546a; --t4:#31334a;
+  --f:'Figtree',sans-serif; --fm:'IBM Plex Mono',monospace;
+  --r:10px; --rs:7px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+html{font-size:14px}
+body{background:var(--bg);color:var(--t1);font-family:var(--f);line-height:1.6;min-height:100vh}
+
+/* ══ LOADER ══ */
+#globalLoader{position:fixed;inset:0;background:rgba(6,7,13,.75);z-index:9998;display:none;align-items:center;justify-content:center}
+.ring{width:40px;height:40px;border:3px solid var(--b2);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ══ TOAST ══ */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--s1);border:1px solid var(--b2);border-radius:24px;padding:10px 20px;font-size:13px;font-family:var(--fm);color:var(--t1);z-index:9997;transition:transform .3s,opacity .3s;opacity:0;pointer-events:none;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.err{border-color:var(--rd);color:var(--rd)}
+
+/* ══ GİRİŞ EKRANI ══ */
+#lock{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px}
+.lkw{width:100%;max-width:360px;text-align:center}
+.lk-brand{font-family:var(--fm);font-size:10px;color:var(--t3);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px}
+.lk-name{font-size:clamp(20px,5vw,26px);font-weight:800;margin-bottom:32px;line-height:1.2}
+.lk-name b{color:var(--acc)}
+.lk-field{position:relative;margin-bottom:10px}
+.lk-field input{background:var(--s2);border:1.5px solid var(--b2);border-radius:var(--r);color:var(--t1);padding:13px 44px 13px 20px;font-family:var(--f);font-size:16px;width:100%;outline:none;transition:border .2s}
+.lk-field input:focus{border-color:var(--acc)}
+.lk-eye{position:absolute;right:14px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--t3);font-size:16px;padding:8px}
+.lk-btn{width:100%;padding:13px;background:var(--acc);color:#000;border:none;border-radius:var(--r);font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;transition:filter .2s}
+.lk-btn:active{filter:brightness(.9)}
+.lk-err{color:var(--rd);font-size:12px;min-height:16px;font-family:var(--fm);margin-top:4px}
+.lk-hint{color:var(--t4);font-size:11px;margin-top:14px;font-family:var(--fm);line-height:1.6}
+
+/* ══ APP ══ */
+#appShell{display:none}
+
+/* ══ TOPBAR ══ */
+#top{background:rgba(12,13,22,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--b1);height:52px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:300}
+#topBrand{display:flex;align-items:center;gap:8px;min-width:0}
+#topIcon{font-size:18px;flex-shrink:0}
+#topName{font-family:var(--f);font-weight:800;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#topName b{color:var(--acc)}
+.top-r{display:flex;align-items:center;gap:6px;flex-shrink:0}
+#topDate{font-size:10px;color:var(--t3);font-family:var(--fm);display:none}
+@media(min-width:768px){#topDate{display:block}}
+.tbtn{height:30px;padding:0 10px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);cursor:pointer;font-size:11px;font-family:var(--fm);font-weight:500;color:var(--t2);display:inline-flex;align-items:center;gap:4px;transition:all .15s}
+.tbtn:hover{border-color:var(--b3);color:var(--t1)}
+.tbtn-r{color:var(--rd);border-color:rgba(232,80,58,.2)}
+.tbtn-r:hover{background:var(--rd-a);border-color:var(--rd)}
+@media(max-width:600px){.tbtn .tlbl{display:none}.tbtn .ticon{display:inline}}
+.tbtn .ticon{display:none}
+@media(max-width:600px){.tbtn .ticon{display:inline}.tbtn .tlbl{display:none}}
+
+/* ══ TABS ══ */
+#tabs{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 12px;display:flex;overflow-x:auto;overflow-y:hidden;position:sticky;top:52px;z-index:200;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tab{display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:42px;cursor:pointer;font-family:var(--f);font-size:12px;font-weight:500;color:var(--t3);border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.tab:hover{color:var(--t2)}
+.tab.on{color:var(--t1);border-bottom-color:var(--acc);font-weight:600}
+
+/* ══ PAGE ══ */
+.pg{display:none;padding:16px;max-width:1500px;margin:0 auto;animation:pgIn .18s ease}
+@media(min-width:768px){.pg{padding:22px 26px}}
+.pg.on{display:block}
+@keyframes pgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.ph h1{font-size:clamp(16px,4vw,19px);font-weight:800;letter-spacing:-.3px}
+.ph p{font-size:12px;color:var(--t3);margin-top:2px}
+.ph-r{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+/* ══ KPI ══ */
+.kg{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px}
+@media(min-width:480px){.kg{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:768px){.kg{grid-template-columns:repeat(auto-fill,minmax(175px,1fr))}}
+.kc{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:14px 16px;position:relative;overflow:hidden;transition:all .2s;cursor:default}
+.kc:hover{border-color:var(--b2)}
+.kc-t{position:absolute;top:0;left:0;right:0;height:2px}
+.kc-l{font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.7px;text-transform:uppercase;margin-bottom:8px}
+.kc-v{font-family:var(--fm);font-size:clamp(16px,4vw,20px);font-weight:700;line-height:1}
+.kc-f{display:flex;align-items:center;gap:5px;margin-top:7px;font-size:11px;color:var(--t3);flex-wrap:wrap}
+
+/* ══ CHIP ══ */
+.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--fm)}
+.cg{background:var(--gr-a);color:var(--gr)}.cr{background:var(--rd-a);color:var(--rd)}
+.cy{background:var(--acc-a);color:var(--acc)}.cb{background:var(--bl-a);color:var(--bl)}
+.cp{background:var(--pu-a);color:var(--pu)}.co{background:var(--or-a);color:var(--or)}
+.cc{background:var(--cy-a);color:var(--cy)}
+
+/* ══ GRID ══ */
+.g2,.g3,.g4,.g12{display:grid;gap:14px;margin-bottom:14px}
+.g2{grid-template-columns:1fr}.g3{grid-template-columns:1fr}.g4{grid-template-columns:repeat(2,1fr)}.g12{grid-template-columns:1fr}
+@media(min-width:600px){.g4{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:768px){.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g12{grid-template-columns:5fr 7fr}}
+
+/* ══ CARD ══ */
+.card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.card.nm{margin-bottom:0}
+.ct{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.ct-l{font-size:10.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;display:flex;align-items:center;gap:6px}
+
+/* ══ FORM ══ */
+.fg{display:grid;gap:9px;margin-bottom:11px;grid-template-columns:1fr}
+.f2{grid-template-columns:1fr}.f3{grid-template-columns:1fr}.f4{grid-template-columns:1fr}.fa{grid-template-columns:1fr}
+@media(min-width:480px){.f2{grid-template-columns:1fr 1fr}.fa{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:768px){.f3{grid-template-columns:repeat(3,1fr)}.f4{grid-template-columns:repeat(4,1fr)}.fa{grid-template-columns:repeat(auto-fill,minmax(145px,1fr))}}
+.fl{display:block;font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
+input,select,textarea{background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);color:var(--t1);padding:10px 12px;font-family:var(--f);font-size:14px;width:100%;outline:none;transition:all .15s;-webkit-appearance:none;appearance:none}
+input:focus,select:focus{border-color:var(--acc);background:var(--s3)}
+input[type=number]{font-family:var(--fm)}
+input::placeholder{color:var(--t4)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238e90a8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+select option{background:var(--s2)}
+.fg-item{display:flex;flex-direction:column}
+
+/* ══ DIVIDER ══ */
+.dv{height:1px;background:var(--b1);margin:14px 0}
+.sec{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;display:flex;align-items:center;gap:9px;margin:14px 0 11px}
+.sec::after{content:'';flex:1;height:1px;background:var(--b1)}
+
+/* ══ BUTTONS ══ */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:9px 15px;border-radius:var(--rs);cursor:pointer;font-family:var(--f);font-size:13px;font-weight:600;border:none;transition:all .15s;white-space:nowrap}
+.bp{background:var(--acc);color:#000}.bp:active{filter:brightness(.9)}
+.bh{background:var(--s2);color:var(--t2);border:1px solid var(--b1)}.bh:hover{border-color:var(--b3);color:var(--t1)}
+.bd{background:var(--rd-a);color:var(--rd);border:1px solid rgba(232,80,58,.15)}
+.bb{background:var(--bl-a);color:var(--bl);border:1px solid rgba(79,142,247,.2)}
+.bsm{padding:5px 10px;font-size:11px}
+.brow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ══ TABLE ══ */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;min-width:500px}
+thead tr{background:var(--s2)}
+th{padding:9px 13px;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--b1)}
+td{padding:10px 13px;font-size:13px;border-bottom:1px solid rgba(34,36,58,.5);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.01)}
+.tpos{color:var(--gr);font-weight:600;font-family:var(--fm)}
+.tneg{color:var(--rd);font-weight:600;font-family:var(--fm)}
+.tnum{font-family:var(--fm)}
+.tmut{color:var(--t3);font-size:12px}
+.empty-row{text-align:center;padding:36px;color:var(--t3)}
+
+/* ══ LIVE BOX ══ */
+.lbox{background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.lg4{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.lg3{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:480px){.lg4{grid-template-columns:repeat(4,1fr)}.lg3{grid-template-columns:repeat(3,1fr)}}
+.lv-l{font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
+.lv-v{font-family:var(--fm);font-size:clamp(15px,3.5vw,18px);font-weight:700}
+
+/* ══ RESULT BOX ══ */
+.rbox{border-radius:var(--r);padding:18px;margin-bottom:12px}
+.rbox-y{background:linear-gradient(135deg,rgba(245,200,66,.12),rgba(245,200,66,.04));border:1px solid rgba(245,200,66,.2)}
+.rbox-g{background:linear-gradient(135deg,rgba(46,204,138,.12),rgba(46,204,138,.04));border:1px solid rgba(46,204,138,.2)}
+.rbox-r{background:linear-gradient(135deg,rgba(232,80,58,.12),rgba(232,80,58,.04));border:1px solid rgba(232,80,58,.2)}
+.rbox-label{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.rbox-num{font-family:var(--fm);font-size:clamp(28px,7vw,42px);font-weight:800;line-height:1}
+.rbox-sub{font-size:12px;color:var(--t2);margin-top:5px}
+.rbox-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.rs-l{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.rs-v{font-family:var(--fm);font-size:15px;font-weight:700}
+.info-box{background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.ib-label{font-size:10px;color:var(--t3);text-transform:uppercase;margin-bottom:5px}
+.ib-num{font-family:var(--fm);font-size:26px;font-weight:800;color:var(--acc)}
+.ib-sub{font-size:12px;color:var(--t3);margin-top:3px}
+
+/* ══ PROGRESS ══ */
+.pb{margin-bottom:9px}
+.pb-l{display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-bottom:4px}
+.pb-bar{height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.pb-fill{height:100%;border-radius:3px;transition:width .7s}
+
+/* ══ ALERT ══ */
+.alert{padding:11px 14px;border-radius:var(--rs);margin-bottom:12px;font-size:13px;display:flex;align-items:flex-start;gap:9px;line-height:1.5}
+.a-g{background:var(--gr-a);border:1px solid rgba(46,204,138,.2);color:var(--gr)}
+.a-r{background:var(--rd-a);border:1px solid rgba(232,80,58,.2);color:var(--rd)}
+.a-y{background:var(--acc-a);border:1px solid rgba(245,200,66,.2);color:var(--acc)}
+.a-b{background:var(--bl-a);border:1px solid rgba(79,142,247,.2);color:var(--bl)}
+
+/* ══ CHART ══ */
+.ch{position:relative;height:clamp(180px,35vw,230px)}
+
+/* ══ BAR ══ */
+.bar-wrap{display:flex;align-items:center;gap:7px}
+.bar-wrap>div:first-child{flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.bar-inner{height:100%;background:var(--gr);border-radius:3px}
+.bar-wrap span{font-size:10px;color:var(--t3);font-family:var(--fm);width:30px}
+
+/* ══ EMPTY ══ */
+.empty-state{text-align:center;padding:36px 20px;color:var(--t3)}
+
+/* ══ DYN ROWS ══ */
+.dyn-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--rs);padding:9px 11px}
+.dyn-lbl{flex:1.4;font-size:13px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dyn-val{width:130px;text-align:right;font-family:var(--fm);background:transparent;border:none;padding:0;color:var(--t1)}
+.dyn-val:focus{outline:none}
+.dyn-unit{font-size:11px;color:var(--t3);flex-shrink:0}
+
+/* ══ TIP ══ */
+.tip-row{display:flex;gap:8px;margin-bottom:14px}
+.tip-btn{flex:1;padding:10px 8px;border-radius:var(--r);cursor:pointer;font-family:var(--f);font-size:12px;font-weight:600;border:2px solid var(--b2);background:var(--s2);color:var(--t2);text-align:center;transition:all .18s}
+.tip-btn.sel{background:var(--acc);color:#000;border-color:var(--acc)}
+
+/* ══ EDIT BANNER ══ */
+.edit-banner{background:linear-gradient(90deg,rgba(245,200,66,.1),rgba(245,200,66,.03));border:1px solid rgba(245,200,66,.25);border-radius:var(--r);padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.eb-l{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--acc);font-weight:600}
+
+/* ══ PERSON ══ */
+.pc{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:12px;margin-bottom:7px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pa{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+.pi{flex:1;min-width:120px}.pi-n{font-weight:600;font-size:13px}.pi-r{font-size:11px;color:var(--t3);margin-top:1px}
+.pr{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+/* ══ SETTINGS ══ */
+.sr{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--b1);gap:12px;flex-wrap:wrap}
+.sr:last-child{border-bottom:none}
+.sr-i strong{font-size:13px;font-weight:600;display:block;margin-bottom:2px}
+.sr-i span{font-size:12px;color:var(--t3)}
+.sr-c{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.sr-c input{width:min(200px,100%)}
+.cb2{width:26px;height:26px;border-radius:6px;border:2px solid transparent;cursor:pointer;transition:all .15s;flex-shrink:0}
+.cb2:hover,.cb2.sel{border-color:white;transform:scale(1.1)}
+
+/* ══ UPLOAD ══ */
+.upload-area{display:block;background:var(--s2);border:2px dashed var(--b2);border-radius:var(--r);padding:24px;text-align:center;cursor:pointer;transition:border .2s}
+.upload-area:hover{border-color:var(--acc)}
+
+@media print{#lock,#top,#tabs,.btn,.brow,.ph-r,#globalLoader,.toast{display:none!important}.pg{display:block!important;padding:0}body{background:white;color:black}}
+</style>
+</head>
+<body>
+
+<div id="globalLoader"><div class="ring"></div></div>
+<div class="toast" id="toast"></div>
+
+<!-- ══ GİRİŞ ══ -->
+<div id="lock">
+  <div class="lkw">
+    <div class="lk-brand">YÖNETİM SİSTEMİ</div>
+    <div class="lk-name" id="loginTitle">Yönetim <b>Paneli</b></div>
+    <div class="lk-field">
+      <input type="email" id="loginEmail" placeholder="E-posta adresi" autocomplete="email" inputmode="email">
+    </div>
+    <div class="lk-field">
+      <input type="password" id="loginPw" placeholder="Şifre" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')handleLogin()">
+      <span class="lk-eye" onclick="var i=document.getElementById('loginPw');i.type=i.type==='password'?'text':'password'">👁</span>
+    </div>
+    <button class="lk-btn" id="loginBtn" onclick="handleLogin()">Giriş Yap</button>
+    <div class="lk-err" id="loginErr"></div>
+    <div class="lk-hint">
+      Supabase Authentication e-posta & şifrenizi kullanın.<br>
+      Supabase → Authentication → Users → Add user
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="appShell">
+
+  <div id="top">
+    <div id="topBrand">
+      <span id="topIcon">🎵</span>
+      <span id="topName"><b id="topTxt">YÖNETİM PANELİ</b></span>
+    </div>
+    <div class="top-r">
+      <span id="topDate"></span>
+      <button class="tbtn" onclick="goTab('yedek')"><span class="ticon">💾</span><span class="tlbl">Yedek</span></button>
+      <button class="tbtn" onclick="goTab('ayarlar')"><span class="ticon">⚙️</span><span class="tlbl">Ayarlar</span></button>
+      <button class="tbtn tbtn-r" onclick="handleLogout()"><span class="ticon">🚪</span><span class="tlbl">Çıkış</span></button>
+    </div>
+  </div>
+
+  <div id="tabs">
+    <div class="tab on" data-pg="ana" onclick="goTab('ana')">🏠 <span id="tn-ana">Ana Panel</span></div>
+    <div class="tab" data-pg="gunluk" onclick="goTab('gunluk')">📅 <span id="tn-gunluk">Günlük Satış</span></div>
+    <div class="tab" data-pg="km" onclick="goTab('km')">🎯 <span id="tn-km">Konser Maliyet</span></div>
+    <div class="tab" data-pg="kz" onclick="goTab('kz')">🎤 <span id="tn-kz">Konser Kar/Zarar</span></div>
+    <div class="tab" data-pg="urun" onclick="goTab('urun')">🍺 <span id="tn-urun">Ürün Karlılığı</span></div>
+    <div class="tab" data-pg="aylik" onclick="goTab('aylik')">📊 <span id="tn-aylik">Aylık Özet</span></div>
+    <div class="tab" data-pg="gider" onclick="goTab('gider')">💸 <span id="tn-gider">Giderler</span></div>
+    <div class="tab" data-pg="personel" onclick="goTab('personel')">👥 <span id="tn-personel">Personel</span></div>
+    <div class="tab" data-pg="grafik" onclick="goTab('grafik')">📈 <span id="tn-grafik">Grafikler</span></div>
+    <div class="tab" data-pg="rapor" onclick="goTab('rapor')">📋 <span id="tn-rapor">Raporlar</span></div>
+  </div>
+
+  <!-- ANA -->
+  <div id="pg-ana" class="pg on">
+    <div class="ph"><div><h1>Ana Panel</h1><p>Anlık özet — buluttan canlı</p></div></div>
+    <div class="kg" id="anaKpis"></div>
+    <div class="g2">
+      <div class="card nm"><div class="ct"><div class="ct-l">📅 Son 7 Gün Ciro</div></div><div class="ch"><canvas id="cA7"></canvas></div></div>
+      <div class="card nm"><div class="ct"><div class="ct-l">📊 Aylık Trend</div></div><div class="ch"><canvas id="cAT"></canvas></div></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="g2">
+      <div class="card nm"><div class="ct"><div class="ct-l">🎤 Son Konserler</div></div><div id="anaKL"></div></div>
+      <div class="card nm"><div class="ct"><div class="ct-l">🍺 En Karlı Ürünler</div></div><div id="anaUL"></div></div>
+    </div>
+  </div>
+
+  <!-- GÜNLÜK -->
+  <div id="pg-gunluk" class="pg">
+    <div class="ph"><div><h1>Günlük Satış & Kasa</h1></div><div class="ph-r"><button class="btn bh bsm" onclick="Export.gunlukCSV()">⬇ CSV</button></div></div>
+    <div class="card">
+      <div class="ct"><div class="ct-l">➕ Yeni Gün <span id="gCnt" style="color:var(--t3);font-weight:400;margin-left:4px"></span></div></div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl">Tarih</label><input type="date" id="g_t"></div>
+        <div class="fg-item"><label class="fl">Toplam Ciro ₺</label><input type="number" id="g_c" placeholder="0" oninput="gLive()"></div>
+        <div class="fg-item"><label class="fl">Nakit ₺</label><input type="number" id="g_n" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">POS/Kart ₺</label><input type="number" id="g_p" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Bira ₺</label><input type="number" id="g_b" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Ağır Alkol ₺</label><input type="number" id="g_a" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Alkolsüz ₺</label><input type="number" id="g_al" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Yiyecek ₺</label><input type="number" id="g_y" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Çerez ₺</label><input type="number" id="g_ce" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Bilet ₺</label><input type="number" id="g_bi" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Ürün Maliyeti ₺</label><input type="number" id="g_um" placeholder="0" oninput="gLive()"></div>
+        <div class="fg-item"><label class="fl">İkram Maliyeti ₺</label><input type="number" id="g_im" placeholder="0" oninput="gLive()"></div>
+        <div class="fg-item"><label class="fl">Not</label><input type="text" id="g_no" placeholder="Konser günü..."></div>
+      </div>
+      <div id="gLB" style="display:none" class="lbox">
+        <div class="lg4">
+          <div><div class="lv-l">Toplam Ciro</div><div class="lv-v" id="gL_c" style="color:var(--bl)">₺0</div></div>
+          <div><div class="lv-l">Maliyet</div><div class="lv-v" id="gL_m" style="color:var(--rd)">₺0</div></div>
+          <div><div class="lv-l">Brüt Kar</div><div class="lv-v" id="gL_k">₺0</div></div>
+          <div><div class="lv-l">Kar Marjı</div><div class="lv-v" id="gL_p">%0</div></div>
+        </div>
+      </div>
+      <div class="brow"><button class="btn bp" onclick="gAdd()">✓ Kaydet</button><button class="btn bh" onclick="gClr()">Temizle</button></div>
+    </div>
+    <div class="card nm">
+      <div class="ct"><div class="ct-l">📋 Kayıtlar</div></div>
+      <div class="tw"><table><thead><tr><th>Tarih</th><th>Ciro</th><th>Nakit</th><th>POS</th><th>Bira</th><th>Alkol</th><th>Yiyecek</th><th>Bilet</th><th>Maliyet</th><th>Brüt Kar</th><th>Marj</th><th>Not</th><th></th></tr></thead><tbody id="gBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- KONSER MALİYET -->
+  <div id="pg-km" class="pg">
+    <div class="ph"><div><h1>Konser Maliyet Planlayıcısı</h1><p>Kaç bilet satmalısınız?</p></div></div>
+    <div class="g12">
+      <div>
+        <div class="card nm">
+          <div class="ct"><div class="ct-l">📋 Bilgiler</div></div>
+          <div class="fg f2">
+            <div class="fg-item"><label class="fl">Sanatçı</label><input type="text" id="km_s" placeholder="Sanatçı adı"></div>
+            <div class="fg-item"><label class="fl">Tarih</label><input type="date" id="km_t"></div>
+          </div>
+          <div class="sec">Maliyet Kalemleri</div>
+          <div id="kmRows"></div>
+          <button class="btn bh bsm" style="margin-bottom:12px" onclick="kmAddRow()">＋ Kalem Ekle</button>
+          <div class="sec">Bilet & Hedef</div>
+          <div class="fg f3">
+            <div class="fg-item"><label class="fl">Tahmini Bilet</label><input type="number" id="km_ba" placeholder="0" oninput="kmCalc()"></div>
+            <div class="fg-item"><label class="fl">Bilet Fiyatı ₺</label><input type="number" id="km_bf" placeholder="0" oninput="kmCalc()"></div>
+            <div class="fg-item"><label class="fl">Kapasite</label><input type="number" id="km_kap" value="500" oninput="kmCalc()"></div>
+          </div>
+          <div class="fg f3">
+            <div class="fg-item"><label class="fl">Diğer Gelir ₺</label><input type="number" id="km_dg" placeholder="0" oninput="kmCalc()"></div>
+            <div class="fg-item"><label class="fl">Hedef Kar ₺</label><input type="number" id="km_hk" placeholder="0" oninput="kmCalc()"></div>
+            <div class="fg-item"><label class="fl">Bilet Başı Maliyet ₺</label><input type="number" id="km_bm" placeholder="0" oninput="kmCalc()"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div id="kmRes"><div class="card nm"><div class="empty-state">⚖️ Kalemleri doldurun</div></div></div>
+        <div style="height:14px"></div>
+        <div class="card nm">
+          <div class="ct"><div class="ct-l">📊 Senaryo Tablosu</div></div>
+          <div class="tw"><table><thead><tr><th>Bilet</th><th>%Doluluk</th><th>Bilet Geliri</th><th>Toplam Gelir</th><th>Toplam Gider</th><th>Kar/Zarar</th><th>Durum</th></tr></thead><tbody id="kmTbl"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KONSER KAR/ZARAR -->
+  <div id="pg-kz" class="pg">
+    <div class="ph"><div><h1>Konser Kar / Zarar</h1></div><div class="ph-r"><button class="btn bh bsm" onclick="Export.konserlerCSV()">⬇ CSV</button></div></div>
+    <div id="kzEB" style="display:none" class="edit-banner">
+      <div class="eb-l">✏️ <span id="kzEBTxt">Düzenleme modu</span></div>
+      <button class="btn bh bsm" onclick="kzClr()">✕ İptal</button>
+    </div>
+    <div class="card">
+      <div class="ct"><div class="ct-l" id="kzFormLbl">➕ Konser Girişi</div></div>
+      <div class="tip-row">
+        <div class="tip-btn sel" id="kzT1" onclick="kzSetTip(1)">🎟 Tip 1 — Kaşe + Bilet Bizde</div>
+        <div class="tip-btn" id="kzT2" onclick="kzSetTip(2)">🤝 Tip 2 — Kapı Destek</div>
+      </div>
+      <div id="kzTipInfo" class="alert a-b"><b>Tip 1:</b> Kaşeyi biz karşılıyoruz, bileti biz satıyoruz.</div>
+      <div class="fg f4">
+        <div class="fg-item"><label class="fl">Sanatçı</label><input type="text" id="kz_s" placeholder="Sanatçı adı"></div>
+        <div class="fg-item"><label class="fl">Tarih</label><input type="date" id="kz_t"></div>
+        <div class="fg-item"><label class="fl">Durum</label><select id="kz_d"><option>Tamamlandı</option><option>Planlandı</option><option>Kesinleşti</option><option>İptal</option></select></div>
+        <div class="fg-item"><label class="fl">Not</label><input type="text" id="kz_n" placeholder="Açıklama..."></div>
+      </div>
+      <div id="kzG1">
+        <div class="sec">📥 Gelirler</div>
+        <div class="fg fa">
+          <div class="fg-item"><label class="fl">Satılan Bilet Adedi</label><input type="number" id="kz_ba" placeholder="0" oninput="kzLive()"></div>
+          <div class="fg-item"><label class="fl">Ort. Bilet Fiyatı ₺</label><input type="number" id="kz_bf" placeholder="0" oninput="kzLive()"></div>
+          <div class="fg-item"><label class="fl">Toplam Bar Cirosu ₺</label><input type="number" id="kz_bc" placeholder="0" oninput="kzLive()"></div>
+          <div class="fg-item"><label class="fl">Toplam Bilet Cirosu ₺</label><input type="number" id="kz_bic" placeholder="0" oninput="kzLive()"></div>
+          <div class="fg-item"><label class="fl">Sponsorluk ₺</label><input type="number" id="kz_sp" placeholder="0" oninput="kzLive()"></div>
+          <div class="fg-item"><label class="fl">Diğer Gelir ₺</label><input type="number" id="kz_dg" placeholder="0" oninput="kzLive()"></div>
+        </div>
+      </div>
+      <div id="kzG2" style="display:none">
+        <div class="sec">📥 Gelirler (Kapı Destek)</div>
+        <div class="fg f3">
+          <div class="fg-item"><label class="fl">Toplam Bar Cirosu ₺</label><input type="number" id="kz2_bc" placeholder="0" oninput="kzLive()"></div>
+          <div class="fg-item"><label class="fl">Diğer Gelir ₺</label><input type="number" id="kz2_dg" placeholder="0" oninput="kzLive()"></div>
+        </div>
+      </div>
+      <div class="sec">📤 Giderler</div>
+      <div id="kzDestek" style="display:none">
+        <div class="fg f3" style="margin-bottom:0">
+          <div class="fg-item"><label class="fl" style="color:var(--acc)">Kapı Destek Tutarı ₺ (Merkeze ödenen)</label><input type="number" id="kz2_de" placeholder="0" oninput="kzLive()"></div>
+        </div>
+        <div class="dv"></div>
+      </div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl" id="kzKaseLbl">Sanatçı Kaşesi ₺</label><input type="number" id="kz_ka" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Konser Diğer Gider (Yemek,Otel) ₺</label><input type="number" id="kz_ko" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Ekipman ₺</label><input type="number" id="kz_ek" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Güvenlik Personel ₺</label><input type="number" id="kz_gu" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Gelen Ekstra Personel ₺</label><input type="number" id="kz_ex" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Kadrolu Personel ₺</label><input type="number" id="kz_kp" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">İkram Maliyeti (KDV dahil) ₺</label><input type="number" id="kz_ik" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Satılan Ürün Maliyeti (KDV dahil) ₺</label><input type="number" id="kz_um" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Bilet Maliyeti (KDV dahil) ₺</label><input type="number" id="kz_bm" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Reklam / Tanıtım ₺</label><input type="number" id="kz_re" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Ulaşım / Konaklama ₺</label><input type="number" id="kz_ul" placeholder="0" oninput="kzLive()"></div>
+        <div class="fg-item"><label class="fl">Diğer Gider ₺</label><input type="number" id="kz_di" placeholder="0" oninput="kzLive()"></div>
+      </div>
+      <div id="kzLB" style="display:none" class="lbox">
+        <div class="lg4">
+          <div><div class="lv-l">Toplam Gelir</div><div class="lv-v" id="kzL_g" style="color:var(--gr)">₺0</div></div>
+          <div><div class="lv-l">Toplam Gider</div><div class="lv-v" id="kzL_gi" style="color:var(--rd)">₺0</div></div>
+          <div><div class="lv-l">Net Kar/Zarar</div><div class="lv-v" id="kzL_k">₺0</div></div>
+          <div><div class="lv-l">Kar Marjı</div><div class="lv-v" id="kzL_m">%0</div></div>
+        </div>
+      </div>
+      <div class="brow">
+        <button class="btn bp" id="kzSBtn" onclick="kzSave()">✓ Kaydet</button>
+        <button class="btn bh" onclick="kzClr()">Temizle / İptal</button>
+      </div>
+    </div>
+    <div class="card nm">
+      <div class="ct"><div class="ct-l">📋 Konser Listesi</div></div>
+      <div class="tw"><table><thead><tr><th>Sanatçı</th><th>Tip</th><th>Tarih</th><th>Durum</th><th>Bilet</th><th>Bar Ciro</th><th>Bilet Ciro</th><th>Toplam Gelir</th><th>Toplam Gider</th><th>Kar/Zarar</th><th>Marj</th><th>Not</th><th></th></tr></thead><tbody id="kzBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ÜRÜN -->
+  <div id="pg-urun" class="pg">
+    <div class="ph"><div><h1>Ürün Karlılığı</h1></div></div>
+    <div class="card">
+      <div class="ct"><div class="ct-l">➕ Ürün Ekle</div></div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl">Ürün Adı</label><input type="text" id="u_ad" placeholder="Efes, Viski..."></div>
+        <div class="fg-item"><label class="fl">Kategori</label><select id="u_kt"><option>Biralar</option><option>Ağır Alkoller</option><option>Alkolsüz İçecekler</option><option>Çerez</option><option>Yiyecekler</option><option>Diğer</option></select></div>
+        <div class="fg-item"><label class="fl">Satış Fiyatı ₺</label><input type="number" id="u_sf" placeholder="0" oninput="uLive()"></div>
+        <div class="fg-item"><label class="fl">Maliyet ₺</label><input type="number" id="u_ml" placeholder="0" oninput="uLive()"></div>
+        <div class="fg-item"><label class="fl">Aylık Satış Adedi</label><input type="number" id="u_ad2" placeholder="0" oninput="uLive()"></div>
+      </div>
+      <div id="uLB" style="display:none" class="lbox">
+        <div class="lg4">
+          <div><div class="lv-l">Birim Kar</div><div class="lv-v" id="uL_b" style="color:var(--gr)">₺0</div></div>
+          <div><div class="lv-l">Kar Marjı</div><div class="lv-v" id="uL_m" style="color:var(--bl)">%0</div></div>
+          <div><div class="lv-l">Aylık Ciro</div><div class="lv-v" id="uL_c" style="color:var(--acc)">₺0</div></div>
+          <div><div class="lv-l">Aylık Net Kar</div><div class="lv-v" id="uL_k" style="color:var(--gr)">₺0</div></div>
+        </div>
+      </div>
+      <button class="btn bp" onclick="uAdd()">✓ Kaydet</button>
+    </div>
+    <div class="card nm">
+      <div class="ct"><div class="ct-l">🍺 Ürün Listesi</div></div>
+      <div class="tw"><table><thead><tr><th>Ürün</th><th>Kategori</th><th>Satış</th><th>Maliyet</th><th>Birim Kar</th><th>Marj</th><th>Aylık Adet</th><th>Aylık Kar</th><th>Karlılık</th><th></th></tr></thead><tbody id="uBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- AYLIK -->
+  <div id="pg-aylik" class="pg">
+    <div class="ph"><div><h1>Aylık Özet & Kar/Zarar</h1></div><div class="ph-r"><button class="btn bh bsm" onclick="Export.aylikCSV()">⬇ CSV</button></div></div>
+    <div class="card">
+      <div class="ct"><div class="ct-l">📥 Veri Girişi</div></div>
+      <div class="fg f3">
+        <div class="fg-item"><label class="fl">Ay</label><select id="ay_ay"><option value="0">Ocak</option><option value="1">Şubat</option><option value="2">Mart</option><option value="3">Nisan</option><option value="4">Mayıs</option><option value="5">Haziran</option><option value="6">Temmuz</option><option value="7">Ağustos</option><option value="8">Eylül</option><option value="9">Ekim</option><option value="10">Kasım</option><option value="11">Aralık</option></select></div>
+        <div class="fg-item"><label class="fl">Yıl</label><input type="number" id="ay_yl" value="2026"></div>
+        <div class="fg-item"><label class="fl">Toplam Ciro ₺</label><input type="number" id="ay_ci" placeholder="0"></div>
+      </div>
+      <div class="sec">Maliyet</div>
+      <div class="fg f3">
+        <div class="fg-item"><label class="fl">Satılan Ürün Maliyeti ₺</label><input type="number" id="ay_um" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">İkram Maliyeti ₺</label><input type="number" id="ay_ik" placeholder="0"></div>
+      </div>
+      <div class="sec">Personel</div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl">Kadro Personel ₺</label><input type="number" id="ay_kp" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">SGK ₺</label><input type="number" id="ay_sg" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Ekstra Personel ₺</label><input type="number" id="ay_ep" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Güvenlik ₺</label><input type="number" id="ay_gv" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Müzisyen ₺</label><input type="number" id="ay_mz" placeholder="0"></div>
+      </div>
+      <div class="sec">Sabit Giderler</div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl">Kira ₺</label><input type="number" id="ay_ki" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Su ₺</label><input type="number" id="ay_su" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Elektrik ₺</label><input type="number" id="ay_el" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Doğalgaz ₺</label><input type="number" id="ay_dg" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Bakım/Onarım ₺</label><input type="number" id="ay_ba" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Muyap/Çevre/Net ₺</label><input type="number" id="ay_mu" placeholder="0"></div>
+      </div>
+      <div class="sec">Diğer Giderler</div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl">Konser Giderleri ₺</label><input type="number" id="ay_kg" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Kontör/Kırtasiye ₺</label><input type="number" id="ay_kr" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">İlaçlama ₺</label><input type="number" id="ay_il" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Apartman Aidat ₺</label><input type="number" id="ay_ai" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">İş Güvenliği ₺</label><input type="number" id="ay_ig" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Noter ₺</label><input type="number" id="ay_no" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Bar Gideri ₺</label><input type="number" id="ay_bg" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Resmi Ceza ₺</label><input type="number" id="ay_rc" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Adana Tic. Odası ₺</label><input type="number" id="ay_at" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Banka Komisyon ₺</label><input type="number" id="ay_bk" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Banka POS ₺</label><input type="number" id="ay_bp" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Temizlik Malz. ₺</label><input type="number" id="ay_tm" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Mutfak/Personel Yemek ₺</label><input type="number" id="ay_my" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">KDV/Muhtasar ₺</label><input type="number" id="ay_kv" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Diğer ₺</label><input type="number" id="ay_di" placeholder="0"></div>
+      </div>
+      <div class="brow"><button class="btn bp" onclick="ayAdd()">✓ Kaydet</button></div>
+    </div>
+    <div class="card nm">
+      <div class="ct"><div class="ct-l">📊 Tablo</div></div>
+      <div class="tw"><table><thead><tr><th>Dönem</th><th>Ciro</th><th>Ürün Mal.</th><th>Toplam Gider</th><th>Net Kar/Zarar</th><th>Brüt Marj</th><th>Net Marj</th><th>Gider/Ciro</th><th>Durum</th><th></th></tr></thead><tbody id="ayBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- GİDER -->
+  <div id="pg-gider" class="pg">
+    <div class="ph"><div><h1>Gider Takibi</h1></div><div class="ph-r"><button class="btn bh bsm" onclick="Export.giderlerCSV()">⬇ CSV</button></div></div>
+    <div class="card">
+      <div class="ct"><div class="ct-l">➕ Gider Ekle</div></div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl">Tarih</label><input type="date" id="gi_t"></div>
+        <div class="fg-item"><label class="fl">Kategori</label><select id="gi_k"><option>Çalışan Bordrolu</option><option>Çalışan Ekstraci</option><option>SGK</option><option>Müzisyen</option><option>Ekipman</option><option>Kira</option><option>Su</option><option>Elektrik</option><option>Doğalgaz</option><option>Bakım/Onarım</option><option>Muyap/Çevre/Net</option><option>Banka Komisyon</option><option>Resmi Ceza</option><option>Temizlik</option><option>Mutfak</option><option>KDV/Vergi</option><option>Diğer</option></select></div>
+        <div class="fg-item"><label class="fl">Açıklama</label><input type="text" id="gi_a" placeholder="Detay..."></div>
+        <div class="fg-item"><label class="fl">Tutar ₺</label><input type="number" id="gi_tu" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Ödeme</label><select id="gi_o"><option>Nakit</option><option>Havale/EFT</option><option>Kredi Kartı</option><option>Çek</option></select></div>
+      </div>
+      <button class="btn bp" onclick="giAdd()">✓ Kaydet</button>
+    </div>
+    <div class="card nm">
+      <div class="ct"><div class="ct-l">💸 Liste</div></div>
+      <div class="tw"><table><thead><tr><th>Tarih</th><th>Kategori</th><th>Açıklama</th><th>Tutar</th><th>Ödeme</th><th></th></tr></thead><tbody id="giBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- PERSONEL -->
+  <div id="pg-personel" class="pg">
+    <div class="ph"><div><h1>Personel Takibi</h1></div><div class="ph-r"><button class="btn bh bsm" onclick="Export.personelCSV()">⬇ CSV</button></div></div>
+    <div class="card">
+      <div class="ct"><div class="ct-l">➕ Personel Ekle</div></div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl">Ad Soyad</label><input type="text" id="p_ad" placeholder="Ad Soyad"></div>
+        <div class="fg-item"><label class="fl">Pozisyon</label><select id="p_pz"><option>Barmen</option><option>Garson</option><option>Güvenlik</option><option>Kasiyer</option><option>Müzisyen</option><option>Temizlik</option><option>Mutfak</option><option>Yönetici</option><option>Diğer</option></select></div>
+        <div class="fg-item"><label class="fl">Tür</label><select id="p_tr"><option>Kadrolu</option><option>Ekstraci</option><option>Müzisyen</option><option>Güvenlik</option></select></div>
+        <div class="fg-item"><label class="fl">Aylık Maaş ₺</label><input type="number" id="p_ma" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">SGK ₺</label><input type="number" id="p_sg" placeholder="0"></div>
+        <div class="fg-item"><label class="fl">Telefon</label><input type="text" id="p_te" placeholder="05xx..."></div>
+      </div>
+      <button class="btn bp" onclick="pAdd()">✓ Kaydet</button>
+    </div>
+    <div class="g2">
+      <div class="card nm"><div class="ct"><div class="ct-l">👥 Personel Listesi</div></div><div id="pListe"></div></div>
+      <div class="card nm"><div class="ct"><div class="ct-l">💰 Maaş Özeti</div></div><div id="pMaas"></div></div>
+    </div>
+  </div>
+
+  <!-- GRAFİK -->
+  <div id="pg-grafik" class="pg">
+    <div class="ph"><div><h1>Grafikler & Analizler</h1></div></div>
+    <div class="g2">
+      <div class="card nm"><div class="ct"><div class="ct-l">📈 Aylık Ciro & Net Kar</div></div><div class="ch"><canvas id="cTr"></canvas></div></div>
+      <div class="card nm"><div class="ct"><div class="ct-l">📊 Brüt & Net Marj %</div></div><div class="ch"><canvas id="cMj"></canvas></div></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="g2">
+      <div class="card nm"><div class="ct"><div class="ct-l">💸 Gider Dağılımı</div></div><div class="ch"><canvas id="cGD"></canvas></div></div>
+      <div class="card nm"><div class="ct"><div class="ct-l">🎤 Konser Kar/Zarar</div></div><div class="ch"><canvas id="cKB"></canvas></div></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="g2">
+      <div class="card nm"><div class="ct"><div class="ct-l">🍺 Ürün Karlılığı</div></div><div class="ch"><canvas id="cUB"></canvas></div></div>
+      <div class="card nm"><div class="ct"><div class="ct-l">📅 Son 14 Gün</div></div><div class="ch"><canvas id="cG14"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- RAPOR -->
+  <div id="pg-rapor" class="pg">
+    <div class="ph"><div><h1>Yönetim Raporları</h1></div><div class="ph-r"><button class="btn bh bsm" onclick="window.print()">🖨️ Yazdır</button></div></div>
+    <div id="raporIc"></div>
+  </div>
+
+  <!-- YEDEK -->
+  <div id="pg-yedek" class="pg">
+    <div class="ph"><div><h1>Yedek & Veri Yönetimi</h1></div></div>
+    <div class="g2">
+      <div class="card">
+        <div class="ct"><div class="ct-l">⬇ Yedek Al</div></div>
+        <p style="color:var(--t2);font-size:13px;margin-bottom:18px;line-height:1.7">Tüm veriler Supabase'de güvende. Yine de periyodik yedek almanız önerilir.</p>
+        <button class="btn bp" onclick="handleYedekAl()" style="width:100%;justify-content:center;padding:12px">⬇ Yedeği İndir (.json)</button>
+      </div>
+      <div class="card">
+        <div class="ct"><div class="ct-l">⬆ Geri Yükle</div></div>
+        <label class="upload-area">
+          <div style="font-size:32px;margin-bottom:8px">📂</div>
+          <div style="font-size:13px;color:var(--t2)">Yedek dosyasını seçin (.json)</div>
+          <input type="file" accept=".json" onchange="handleYedekYukle(event)" style="display:none">
+        </label>
+        <div id="yMsg" style="margin-top:10px;min-height:18px;font-size:13px"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct"><div class="ct-l" style="color:var(--rd)">⚠️ Tehlikeli Alan</div></div>
+      <p style="color:var(--t2);font-size:13px;margin-bottom:14px">Supabase'deki tüm verileri sil — geri alınamaz!</p>
+      <button class="btn bd" onclick="handleVerileriSifirla()">🗑 Tüm Verileri Sil</button>
+    </div>
+  </div>
+
+  <!-- AYARLAR -->
+  <div id="pg-ayarlar" class="pg">
+    <div class="ph"><div><h1>Ayarlar & Özelleştirme</h1></div></div>
+    <div class="g2">
+      <div class="card">
+        <div class="ct"><div class="ct-l">🏢 İşletme Bilgileri</div></div>
+        <div class="sr">
+          <div class="sr-i"><strong>İşletme Adı</strong><span>Üst çubuk ve giriş ekranı</span></div>
+          <div class="sr-c"><input type="text" id="st_is"></div>
+        </div>
+        <div class="sr">
+          <div class="sr-i"><strong>İkon</strong><span>Emoji seçin</span></div>
+          <div class="sr-c"><input type="text" id="st_ic" maxlength="4" style="width:70px;text-align:center;font-size:18px"></div>
+        </div>
+        <div class="sr">
+          <div class="sr-i"><strong>Renk Teması</strong></div>
+          <div class="sr-c">
+            <div class="cb2 sel" id="cr_y" style="background:#f5c842" onclick="setClr('#f5c842','cr_y')"></div>
+            <div class="cb2" id="cr_g" style="background:#2ecc8a" onclick="setClr('#2ecc8a','cr_g')"></div>
+            <div class="cb2" id="cr_b" style="background:#4f8ef7" onclick="setClr('#4f8ef7','cr_b')"></div>
+            <div class="cb2" id="cr_p" style="background:#9b72f5" onclick="setClr('#9b72f5','cr_p')"></div>
+            <div class="cb2" id="cr_c" style="background:#22d3ee" onclick="setClr('#22d3ee','cr_c')"></div>
+            <div class="cb2" id="cr_r" style="background:#e8503a" onclick="setClr('#e8503a','cr_r')"></div>
+            <div class="cb2" id="cr_o" style="background:#f97316" onclick="setClr('#f97316','cr_o')"></div>
+          </div>
+        </div>
+        <div style="margin-top:14px"><button class="btn bp" onclick="stSave()">✓ Kaydet</button></div>
+      </div>
+      <div class="card">
+        <div class="ct"><div class="ct-l">👤 Hesap</div></div>
+        <p style="color:var(--t2);font-size:13px;margin-bottom:14px">Giriş: <b id="userEmail" style="color:var(--acc)"></b></p>
+        <button class="btn bh" onclick="handleLogout()">🚪 Çıkış Yap</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct"><div class="ct-l">🏷 Sekme İsimleri</div></div>
+      <div class="fg fa">
+        <div class="fg-item"><label class="fl">Ana Panel</label><input type="text" id="sn_ana"></div>
+        <div class="fg-item"><label class="fl">Günlük Satış</label><input type="text" id="sn_gunluk"></div>
+        <div class="fg-item"><label class="fl">Konser Maliyet</label><input type="text" id="sn_km"></div>
+        <div class="fg-item"><label class="fl">Konser Kar/Zarar</label><input type="text" id="sn_kz"></div>
+        <div class="fg-item"><label class="fl">Ürün Karlılığı</label><input type="text" id="sn_urun"></div>
+        <div class="fg-item"><label class="fl">Aylık Özet</label><input type="text" id="sn_aylik"></div>
+        <div class="fg-item"><label class="fl">Giderler</label><input type="text" id="sn_gider"></div>
+        <div class="fg-item"><label class="fl">Personel</label><input type="text" id="sn_personel"></div>
+        <div class="fg-item"><label class="fl">Grafikler</label><input type="text" id="sn_grafik"></div>
+        <div class="fg-item"><label class="fl">Raporlar</label><input type="text" id="sn_rapor"></div>
+      </div>
+      <button class="btn bp" onclick="stSave()">✓ Kaydet</button>
+    </div>
+  </div>
+
+</div><!-- /appShell -->
+
+<!-- ③ supabase.js — Supabase SDK'dan sonra, app.js'ten önce -->
+<script src="supabase.js"></script>
+<!-- ④ app.js — En son -->
+<script src="app.js"></script>
+
+<!-- Giriş sonrası kullanıcı e-postasını göster -->
+<script>
+// app.js içindeki Auth.onAuthChange'e ek olarak e-posta göster
+const _origOnAuth = Auth.onAuthChange.bind(Auth);
+</script>
+
+</body>
+</html>
